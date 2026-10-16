@@ -1,0 +1,1298 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SilverLight Master 3.2 - 傳統黑白暗房大師旗艦修復版</title>
+    <style>
+        /* ==========================================================================
+           1. 全域視覺設計系統與主題變數 (Darkroom Studio Aesthetic)
+           ========================================================================== */
+        :root {
+            --bg-base: #0a0808;
+            --bg-panel: #161414;
+            --bg-card: #221f1f;
+            --bg-input: #110f0f;
+            --border-dark: #332b2b;
+            --border-light: #554444;
+            
+            --safelight-red: #ff2200;
+            --safelight-glow: rgba(255, 34, 0, 0.35);
+            --amber-gold: #ffaa00;
+            --amber-glow: rgba(255, 170, 0, 0.35);
+            
+            --text-main: #e0d8d8;
+            --text-muted: #887777;
+            --text-bright: #ffffff;
+            
+            --accent-green: #2ecc71;
+            --accent-blue: #3498db;
+            --accent-purple: #9b59b6;
+            --danger-red: #e74c3c;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            transition: background 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        /* 暗房環境燈狀態類別 */
+        body.mode-red { box-shadow: inset 0 0 120px var(--safelight-glow); }
+        body.mode-amber { box-shadow: inset 0 0 120px var(--amber-glow); }
+        body.mode-white {
+            background-color: #1f2224;
+            box-shadow: inset 0 0 50px rgba(255,255,255,0.2);
+            color: #222;
+        }
+        body.mode-white .panel, body.mode-white .hud-header, body.mode-white .tab-nav {
+            background: #e8e8e0 !important;
+            color: #111 !important;
+            border-color: #bbb !important;
+        }
+
+        /* ==========================================================================
+           2. 頂部 HUD 狀態列與控制器
+           ========================================================================== */
+        .hud-header {
+            background: #110d0d;
+            border-bottom: 2px solid var(--border-dark);
+            padding: 10px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.8);
+        }
+
+        .brand-title {
+            font-size: 1.3rem; font-weight: 900; letter-spacing: 2px;
+            color: var(--safelight-red); display: flex; align-items: center; gap: 10px;
+        }
+        .brand-title span { color: var(--text-main); font-size: 0.8rem; background: #331111; padding: 2px 8px; border-radius: 4px; }
+
+        .player-stats {
+            display: flex; gap: 15px; font-family: 'Courier New', monospace; font-weight: bold;
+        }
+        .stat-box {
+            background: #000; padding: 6px 14px; border-radius: 6px;
+            border: 1px solid var(--border-dark); display: flex; align-items: center; gap: 8px;
+        }
+        .stat-box .label { color: var(--text-muted); font-size: 0.75rem; }
+        .stat-box .value { color: var(--amber-gold); font-size: 1.1rem; }
+
+        .environment-controls { display: flex; gap: 8px; align-items: center; }
+
+        .btn-toggle {
+            background: #221818; border: 1px solid var(--border-light);
+            color: var(--text-main); padding: 6px 12px; border-radius: 4px;
+            cursor: pointer; font-size: 0.85rem; font-weight: bold; transition: all 0.2s;
+        }
+        .btn-toggle:hover { background: var(--border-light); }
+        .btn-toggle.active-red { background: #660000; border-color: #ff3333; color: #fff; }
+        .btn-toggle.active-amber { background: #664400; border-color: #ffbb00; color: #fff; }
+        .btn-toggle.active-white { background: #eee; border-color: #fff; color: #000; }
+
+        /* ==========================================================================
+           3. 分頁導覽與整體排版
+           ========================================================================== */
+        .tab-nav {
+            display: flex; background: #0d0a0a; border-bottom: 1px solid var(--border-dark); padding: 0 20px; overflow-x: auto;
+        }
+        .tab-btn {
+            padding: 14px 18px; background: transparent; border: none;
+            color: var(--text-muted); font-weight: bold; font-size: 0.9rem; white-space: nowrap;
+            cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.2s;
+        }
+        .tab-btn:hover { color: var(--text-main); background: rgba(255,255,255,0.02); }
+        .tab-btn.active {
+            color: var(--safelight-red); border-bottom-color: var(--safelight-red);
+            background: rgba(255,34,0,0.05);
+        }
+
+        .main-container {
+            flex: 1; padding: 20px; max-width: 1650px; margin: 0 auto; width: 100%; display: flex; flex-direction: column;
+        }
+
+        .tab-content { display: none; flex: 1; animation: fadeIn 0.3s ease; }
+        .tab-content.active { display: flex; gap: 20px; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        .panel {
+            background: var(--bg-panel); border: 1px solid var(--border-dark);
+            border-radius: 10px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        /* ==========================================================================
+           4. 分頁 1: 放大機工作台 3.0 (Enlarger Studio)
+           ========================================================================== */
+        .enlarger-layout { display: grid; grid-template-columns: 320px 1fr 320px; width: 100%; gap: 20px; }
+
+        .knob-card {
+            background: var(--bg-card); border: 1px solid var(--border-dark); padding: 12px; border-radius: 8px; margin-bottom: 10px;
+        }
+        .knob-label { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 6px; display: flex; justify-content: space-between; }
+        .knob-value { color: var(--amber-gold); font-family: monospace; font-weight: bold; }
+
+        input[type="range"] { width: 100%; accent-color: var(--safelight-red); cursor: pointer; }
+
+        .enlarger-stage {
+            background: #000; border: 2px solid #222; border-radius: 8px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            position: relative; overflow: hidden; min-height: 520px;
+        }
+        #enlarger-canvas { background: #111; box-shadow: 0 0 30px rgba(0,0,0,0.9); cursor: crosshair; }
+
+        .tool-palette { display: flex; gap: 8px; margin-top: 10px; }
+        .tool-btn {
+            flex: 1; padding: 8px; background: var(--bg-card); border: 1px solid var(--border-dark);
+            color: var(--text-main); border-radius: 6px; cursor: pointer; font-size: 0.8rem; text-align: center;
+        }
+        .tool-btn.active { border-color: var(--amber-gold); color: var(--amber-gold); background: #332611; }
+
+        .btn-expose-main {
+            width: 100%; padding: 16px; background: linear-gradient(135deg, #cc1100, #880000);
+            border: 2px solid #ff4444; color: #fff; font-size: 1.15rem; font-weight: 900;
+            border-radius: 8px; cursor: pointer; box-shadow: 0 0 20px var(--safelight-glow);
+            transition: all 0.2s; margin-top: 15px; letter-spacing: 1px;
+        }
+        .btn-expose-main:active { transform: scale(0.98); }
+
+        .upload-btn-wrapper {
+            position: relative; overflow: hidden; display: inline-block; width: 100%; margin-top: 6px;
+        }
+        .btn-upload {
+            width: 100%; padding: 8px; background: #221c1c; border: 1px dashed var(--amber-gold);
+            color: var(--amber-gold); border-radius: 4px; font-weight: bold; font-size: 0.85rem; cursor: pointer; text-align: center;
+        }
+        .upload-btn-wrapper input[type=file] {
+            font-size: 100px; position: absolute; left: 0; top: 0; opacity: 0; cursor: pointer;
+        }
+
+        /* ==========================================================================
+           5. 分頁 2: 藥水調配工作台 (Dilution Studio)
+           ========================================================================== */
+        .dilution-layout { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; gap: 20px; }
+        .chem-beaker-card {
+            background: var(--bg-panel); border: 1px solid var(--border-dark); border-radius: 10px; padding: 20px;
+            display: flex; flex-direction: column; align-items: center; gap: 15px;
+        }
+        .beaker-visual {
+            width: 120px; height: 180px; border: 3px solid #666; border-radius: 0 0 15px 15px;
+            position: relative; overflow: hidden; background: rgba(255,255,255,0.05);
+        }
+        .beaker-liquid {
+            position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(230, 126, 34, 0.6);
+            transition: height 0.3s ease;
+        }
+
+        /* ==========================================================================
+           6. 分頁 3: 化學沖洗區 (Wet Bench)
+           ========================================================================== */
+        .wetbench-layout { display: grid; grid-template-columns: repeat(4, 1fr); width: 100%; gap: 15px; }
+
+        .tray-card {
+            background: #141212; border: 3px solid #282222; border-radius: 12px;
+            padding: 15px; display: flex; flex-direction: column; align-items: center;
+            min-height: 520px; position: relative;
+        }
+        .tray-card.dev { border-color: #3b2a1a; }
+        .tray-card.stop { border-color: #1a3b22; }
+        .tray-card.fix { border-color: #1a2a3b; }
+        .tray-card.wash { border-color: #2a2a3b; }
+
+        .tray-title { font-weight: bold; font-size: 1.1rem; margin-bottom: 4px; }
+        .tray-desc { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 12px; }
+        .tray-timer { font-family: monospace; font-size: 1.8rem; color: var(--amber-gold); margin-bottom: 10px; }
+
+        .tray-liquid-viewport {
+            width: 100%; flex: 1; background: rgba(0,0,0,0.6); border: 2px dashed #333;
+            border-radius: 8px; position: relative; overflow: hidden;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .tray-card.drag-over .tray-liquid-viewport { border-color: var(--safelight-red); background: rgba(255,34,0,0.1); }
+
+        /* ==========================================================================
+           7. 分頁 4: 晾乾區 (Drying Rack Zone - 含穿透保護)
+           ========================================================================== */
+        .drying-layout { display: grid; grid-template-columns: 2fr 1fr; width: 100%; gap: 20px; }
+        .drying-rack-zone {
+            background: #110e0e; border: 2px dashed #555; border-radius: 10px;
+            padding: 20px; min-height: 420px; position: relative; transition: border-color 0.2s;
+        }
+        .drying-rack-zone.drag-over { border-color: var(--amber-gold); background: rgba(255,170,0,0.05); }
+        .drying-rack-zone * { pointer-events: none; } /* 穿透保護：避免內部文字與線條阻擋拖曳事件 */
+        .drying-line { width: 100%; height: 4px; background: #555; margin-top: 40px; position: relative; }
+
+        .loupe-box {
+            width: 220px; height: 220px; border-radius: 50%; border: 6px solid #333;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.9), 0 0 15px rgba(0,0,0,0.8);
+            overflow: hidden; background: #000; position: relative;
+        }
+        #loupe-canvas { width: 100%; height: 100%; }
+
+        #histogram-canvas {
+            width: 100%; height: 80px; background: #000; border: 1px solid var(--border-dark); border-radius: 4px; margin-top: 10px;
+        }
+
+        /* ==========================================================================
+           8. 常駐懸浮相紙艙 (Persistent Paper Dock - 全局修復靈魂)
+           ========================================================================== */
+        #paper-spawn-wrapper {
+            position: fixed; bottom: 20px; right: 20px; z-index: 9999;
+            background: #181414; border: 2px solid var(--amber-gold); border-radius: 10px;
+            padding: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.9);
+            display: none; flex-direction: column; align-items: center; gap: 8px;
+        }
+        .paper-item {
+            width: 160px; height: 210px; background: #fbfbf8; border-radius: 4px;
+            padding: 8px 8px 25px 8px; cursor: grab; position: relative;
+        }
+        .paper-item:active { cursor: grabbing; }
+        .paper-canvas-preview { width: 100%; height: 100%; background: #eee; object-fit: cover; pointer-events: none; }
+
+        .btn-hang-quick {
+            width: 100%; padding: 8px; background: #223322; border: 1px solid var(--accent-green);
+            color: #fff; font-size: 0.8rem; font-weight: bold; border-radius: 4px; cursor: pointer; transition: 0.2s;
+        }
+        .btn-hang-quick:hover { background: var(--accent-green); color: #000; }
+
+        /* ==========================================================================
+           9. 委託、商店、成就、藝廊與手冊
+           ========================================================================== */
+        .quest-grid, .shop-grid, .gallery-grid, .achievement-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; width: 100%;
+        }
+        .quest-card, .shop-card, .gallery-card, .achieve-card {
+            background: var(--bg-card); border: 1px solid var(--border-dark); border-radius: 8px; padding: 15px;
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        .quest-card.active { border-color: var(--amber-gold); background: #282010; }
+        .achieve-card.unlocked { border-color: var(--accent-green); background: #102818; }
+
+        .card-title { font-weight: bold; color: var(--amber-gold); }
+        .card-reward { color: var(--accent-green); font-weight: bold; font-family: monospace; }
+
+        .btn-action {
+            padding: 8px 14px; background: #332222; border: 1px solid var(--safelight-red);
+            color: var(--text-main); border-radius: 4px; cursor: pointer; font-weight: bold; text-align: center;
+        }
+        .btn-action:hover { background: var(--safelight-red); color: #000; }
+
+        .manual-text { line-height: 1.7; font-size: 0.95rem; color: #ccc; }
+        .manual-text h3 { color: var(--amber-gold); margin: 15px 0 8px 0; }
+
+        /* Toast 訊息 */
+        .toast-msg {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            background: var(--danger-red); color: white; padding: 12px 24px; border-radius: 30px;
+            font-weight: bold; z-index: 10000; display: none; animation: popUp 0.3s ease;
+        }
+        @keyframes popUp { from { opacity:0; transform: translate(-50%, 20px); } to { opacity:1; transform: translate(-50%, 0); } }
+
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85);
+            display: none; justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(5px);
+        }
+        .modal-card {
+            background: #181414; border: 2px solid var(--safelight-red); border-radius: 12px;
+            padding: 30px; max-width: 580px; width: 90%; text-align: center;
+        }
+        .stamp-grade {
+            font-size: 3rem; font-weight: 900; font-family: 'Impact', sans-serif; margin: 15px 0;
+            border: 4px dashed var(--safelight-red); display: inline-block; padding: 5px 25px;
+            transform: rotate(-5deg); color: var(--safelight-red);
+        }
+    </style>
+</head>
+<body class="mode-red">
+
+    <div class="toast-msg" id="toast">❌ 操作提示</div>
+
+    <!-- 頂部 HUD -->
+    <header class="hud-header">
+        <div class="brand-title">📷 SILVERLIGHT <span>MASTER 3.2</span></div>
+
+        <div class="player-stats">
+            <div class="stat-box"><span class="label">現金:</span><span class="value" id="stat-cash">$150</span></div>
+            <div class="stat-box"><span class="label">等級:</span><span class="value" id="stat-exp">LV.1 (0/100)</span></div>
+            <div class="stat-box"><span class="label">當前委託:</span><span class="value" id="stat-quest" style="color:var(--text-main); font-size:0.85rem;">無</span></div>
+        </div>
+
+        <div class="environment-controls">
+            <button class="btn-toggle active-red" id="btn-light-red" onclick="setLightMode('red')">🔴 安全紅燈</button>
+            <button class="btn-toggle" id="btn-light-amber" onclick="setLightMode('amber')">🟡 琥珀燈</button>
+            <button class="btn-toggle" id="btn-light-white" onclick="setLightMode('white')">⚪ 全亮白燈</button>
+            <button class="btn-toggle" onclick="toggleAudioHum()" id="btn-audio-hum">🔊 暗房抽風聲: 關</button>
+            <button class="btn-toggle" style="background:#441111; border-color:#882222;" onclick="resetGameSave()">🔄 重置存檔</button>
+        </div>
+    </header>
+
+    <!-- 主分頁導覽 -->
+    <nav class="tab-nav">
+        <button class="tab-btn active" data-tab="enlarger" onclick="switchTab('enlarger', this)">🔬 1. 放大機工作台</button>
+        <button class="tab-btn" data-tab="dilution" onclick="switchTab('dilution', this)">🧪 2. 藥水調配工作台</button>
+        <button class="tab-btn" data-tab="wetbench" onclick="switchTab('wetbench', this)">🌊 3. 化學水盆沖洗區</button>
+        <button class="tab-btn" data-tab="drying" onclick="switchTab('drying', this)">👕 4. 晾乾與檢視區</button>
+        <button class="tab-btn" data-tab="quests" onclick="switchTab('quests', this)">📜 5. 客戶接單板</button>
+        <button class="tab-btn" data-tab="shop" onclick="switchTab('shop', this)">🛒 6. 器材商店</button>
+        <button class="tab-btn" data-tab="achievements" onclick="switchTab('achievements', this)">🏆 7. 成就紀錄</button>
+        <button class="tab-btn" data-tab="gallery" onclick="switchTab('gallery', this)">🖼️ 8. 作品藝廊</button>
+        <button class="tab-btn" data-tab="manual" onclick="switchTab('manual', this)">📖 9. 暗房指南</button>
+    </nav>
+
+    <!-- 主內容容器 -->
+    <main class="main-container">
+
+        <!-- 分頁 1: 放大機工作台 -->
+        <section id="tab-enlarger" class="tab-content active">
+            <div class="enlarger-layout">
+                <div class="panel">
+                    <h3 style="color:var(--amber-gold); margin-bottom:10px;">放大機設定 (Enlarger)</h3>
+                    
+                    <div class="knob-card">
+                        <div class="knob-label"><span>選擇底片 (Negative)</span></div>
+                        <select id="select-film" onchange="loadFilmToEnlarger()" style="width:100%; padding:8px; background:#111; color:#fff; border:1px solid #444; border-radius:4px;">
+                            <option value="portrait">肖像 - 爵士樂手 (Tri-X 400)</option>
+                            <option value="street">街景 - 雨後倫敦 (HP5 Plus)</option>
+                            <option value="landscape">風景 - 優勝美地 (FP4 Plus)</option>
+                        </select>
+                        <div class="upload-btn-wrapper">
+                            <button class="btn-upload">📁 上傳自訂照片底片 (Upload)</button>
+                            <input type="file" id="custom-file-input" accept="image/*" onchange="handleCustomFileUpload(event)">
+                        </div>
+                    </div>
+
+                    <div class="knob-card">
+                        <div class="knob-label"><span>多重號數濾光片 (Contrast Filter)</span><span class="knob-value" id="val-filter">Grade 2#</span></div>
+                        <input type="range" id="knob-filter" min="0" max="4" value="2" oninput="updateEnlargerParams()">
+                    </div>
+
+                    <div class="knob-card">
+                        <div class="knob-label"><span>鏡頭光圈 (Aperture)</span><span class="knob-value" id="val-aperture">f/8</span></div>
+                        <input type="range" id="knob-aperture" min="0" max="5" value="2" oninput="updateEnlargerParams()">
+                    </div>
+
+                    <div class="knob-card">
+                        <div class="knob-label"><span>焦距對焦 (Focus)</span><span class="knob-value" id="val-focus">100% (清晰)</span></div>
+                        <input type="range" id="knob-focus" min="0" max="100" value="100" oninput="updateEnlargerParams()">
+                    </div>
+
+                    <div class="knob-card">
+                        <div class="knob-label"><span>曝光時間 (Timer)</span><span class="knob-value" id="val-timer">5.0 秒</span></div>
+                        <input type="range" id="knob-timer" min="1" max="20" value="5" step="0.5" oninput="updateEnlargerParams()">
+                    </div>
+                </div>
+
+                <div class="enlarger-stage">
+                    <canvas id="enlarger-canvas" width="360" height="460"></canvas>
+                </div>
+
+                <div class="panel" style="display:flex; flex-direction:column;">
+                    <h3 style="color:var(--amber-gold); margin-bottom:10px;">局部遮/加光筆刷</h3>
+                    <div class="tool-palette">
+                        <button class="tool-btn active" id="tool-none" onclick="setTool('none')">無筆刷</button>
+                        <button class="tool-btn" id="tool-dodge" onclick="setTool('dodge')">☀️ 遮光</button>
+                        <button class="tool-btn" id="tool-burn" onclick="setTool('burn')">🔥 加光</button>
+                    </div>
+
+                    <div class="knob-card" style="margin-top:12px;">
+                        <div class="knob-label"><span>筆刷尺寸</span><span class="knob-value" id="val-brush-size">30px</span></div>
+                        <input type="range" id="knob-brush-size" min="10" max="80" value="30" oninput="updateBrushSize()">
+                    </div>
+
+                    <div style="flex:1;"></div>
+                    <button class="btn-expose-main" onclick="triggerExposure()">🔴 放大機感光曝光 (EXPOSE)</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 分頁 2: 藥水調配工作台 -->
+        <section id="tab-dilution" class="tab-content">
+            <div class="dilution-layout">
+                <div class="chem-beaker-card">
+                    <h3 style="color:#e67e22;">D-76 顯影液調配</h3>
+                    <div class="beaker-visual">
+                        <div class="beaker-liquid" id="beaker-liquid-dev" style="height:60%;"></div>
+                    </div>
+                    <div style="width:100%;">
+                        <div class="knob-label"><span>稀釋比例 (Dilution)</span><span class="knob-value" id="val-dilution">1:1</span></div>
+                        <input type="range" id="knob-dilution" min="0" max="2" value="1" oninput="updateDilutionParams()">
+                    </div>
+                    <p style="font-size:0.8rem; color:var(--text-muted); line-height:1.5;">
+                        • 原液 (Stock): 顯影快速，階調強烈<br>
+                        • 1:1 稀釋: 標準平衡，銀鹽細緻<br>
+                        • 1:3 稀釋: 慢速顯影，亮部細節延伸
+                    </p>
+                </div>
+
+                <div class="chem-beaker-card">
+                    <h3 style="color:#2ecc71;">急停液濃度 (Stop Bath)</h3>
+                    <div class="beaker-visual">
+                        <div class="beaker-liquid" style="height:80%; background:rgba(46, 204, 113, 0.6);"></div>
+                    </div>
+                    <p style="font-size:0.85rem; color:var(--text-muted); text-align:center;">標準醋酸停影配方，能瞬間終止顯影作用。</p>
+                </div>
+
+                <div class="chem-beaker-card">
+                    <h3 style="color:#3498db;">定影液類型 (Fixer)</h3>
+                    <div class="beaker-visual">
+                        <div class="beaker-liquid" style="height:75%; background:rgba(52, 152, 219, 0.6);"></div>
+                    </div>
+                    <p style="font-size:0.85rem; color:var(--text-muted); text-align:center;" id="fixer-type-desc">標準硫代硫酸鈉定影液 (需滿 5.0 秒)。</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 分頁 3: 沖洗水盆區 -->
+        <section id="tab-wetbench" class="tab-content">
+            <div class="wetbench-layout">
+                <div class="tray-card dev" id="tray-dev" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'dev')">
+                    <div class="tray-title" style="color:#e67e22;">1. 顯影液 (Developer)</div>
+                    <div class="tray-desc" id="tray-dev-desc">還原銀鹽 (目標: 7-9 秒)</div>
+                    <div class="tray-timer" id="timer-dev">00.0s</div>
+                    <div class="tray-liquid-viewport" id="viewport-dev"></div>
+                </div>
+
+                <div class="tray-card stop" id="tray-stop" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'stop')">
+                    <div class="tray-title" style="color:#2ecc71;">2. 急停液 (Stop Bath)</div>
+                    <div class="tray-desc">終止顯影 (需滿 2 秒)</div>
+                    <div class="tray-timer" id="timer-stop">00.0s</div>
+                    <div class="tray-liquid-viewport" id="viewport-stop"></div>
+                </div>
+
+                <div class="tray-card fix" id="tray-fix" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'fix')">
+                    <div class="tray-title" style="color:#3498db;">3. 定影液 (Fixer)</div>
+                    <div class="tray-desc" id="tray-fix-desc">防光固化 (需滿 5 秒)</div>
+                    <div class="tray-timer" id="timer-fix">00.0s</div>
+                    <div class="tray-liquid-viewport" id="viewport-fix"></div>
+                </div>
+
+                <div class="tray-card wash" id="tray-wash" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'wash')">
+                    <div class="tray-title" style="color:#9b59b6;">4. 清水洗滌 (Wash)</div>
+                    <div class="tray-desc">洗淨藥劑 (需滿 3 秒)</div>
+                    <div class="tray-timer" id="timer-wash">00.0s</div>
+                    <div class="tray-liquid-viewport" id="viewport-wash"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 分頁 4: 晾乾與 Loupe 放大鏡檢視 -->
+        <section id="tab-drying" class="tab-content">
+            <div class="drying-layout">
+                <div class="drying-rack-zone" id="drying-rack-zone" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'drying')">
+                    <h3 style="color:var(--amber-gold);">👕 晾乾繩 (Drying Rack Zone)</h3>
+                    <p style="color:var(--text-muted); font-size:0.85rem; margin-top:4px;">請將完成所有沖洗程序的相紙拖曳至此處晾乾。</p>
+                    <div class="drying-line"></div>
+                    <div id="hanging-paper-container" style="display:flex; gap:20px; padding:20px; flex-wrap:wrap; pointer-events:auto;"></div>
+                </div>
+
+                <div class="panel" style="display:flex; flex-direction:column; align-items:center; gap:12px;">
+                    <h3 style="color:var(--amber-gold);">🔍 3X 放大鏡與直方圖分析</h3>
+                    <div class="loupe-box">
+                        <canvas id="loupe-canvas" width="220" height="220"></canvas>
+                    </div>
+                    
+                    <div style="width:100%;">
+                        <div style="font-size:0.75rem; color:var(--text-muted); text-align:center;">曝光直方圖 (Luminance Histogram)</div>
+                        <canvas id="histogram-canvas" width="260" height="80"></canvas>
+                    </div>
+
+                    <button class="btn-action" style="width:100%; padding:10px; font-size:0.95rem;" onclick="submitPhotoForQuest()">📤 提交給委託客戶驗收</button>
+                    <button class="btn-action" style="width:100%; padding:8px; background:#223322; border-color:#2e7d32;" onclick="savePhotoToGallery()">🖼️ 保存至個人藝廊</button>
+                    <button class="btn-action" style="width:100%; padding:8px; background:#332233; border-color:#882288;" onclick="exportCertificateModal()">📜 匯出大師證書與作品圖片</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 分頁 5: 委託板 -->
+        <section id="tab-quests" class="tab-content">
+            <div class="quest-grid" id="quest-container"></div>
+        </section>
+
+        <!-- 分頁 6: 商店 -->
+        <section id="tab-shop" class="tab-content">
+            <div class="shop-grid" id="shop-container"></div>
+        </section>
+
+        <!-- 分頁 7: 成就 -->
+        <section id="tab-achievements" class="tab-content">
+            <div class="achievement-grid" id="achievement-container"></div>
+        </section>
+
+        <!-- 分頁 8: 藝廊 -->
+        <section id="tab-gallery" class="tab-content">
+            <div class="gallery-grid" id="gallery-container"></div>
+        </section>
+
+        <!-- 分頁 9: 暗房指南 -->
+        <section id="tab-manual" class="tab-content">
+            <div class="panel manual-text" style="width:100%;">
+                <h2 style="color:var(--amber-gold); border-bottom:1px solid var(--border-dark); padding-bottom:10px;">📖 銀鹽暗房傳統沖印指南</h2>
+                
+                <h3>1. 放大機曝光 (Enlarging)</h3>
+                <p>將底片放進放大機，調整光圈與計時。使用多重號數濾光片 (Multigrade Filters) 可以改變反差：00# 為軟調 (Soft)，5# 為硬調高反差 (Hard)。利用遮光 (Dodge) 手法可以讓局部變亮，加光 (Burn) 手法讓局部加深。</p>
+
+                <h3>2. 藥水稀釋與顯影 (Development)</h3>
+                <p>D-76 顯影液會將感光後的溴化銀還原成金屬銀。稀釋比例 1:1 時顯影速度適中、階調最豐富。若過度顯影會導致黑死；顯影不足則會灰白無細節。</p>
+
+                <h3>3. 急停與定影 (Stop & Fix)</h3>
+                <p>急停液能立即終止顯影化學反應。定影液能溶掉未感光的溴化銀，使照片獲得永久防光固化。未完成定影前開白燈，照片會瞬間曝光廢掉！</p>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- 常駐懸浮相紙艙 (Persistent Paper Dock - 全局跨分頁修復) -->
+    <div id="paper-spawn-wrapper">
+        <div style="font-size:0.75rem; color:var(--amber-gold); font-weight:bold;">當前相紙 (Drag or Hang)</div>
+        <div class="paper-item" id="draggable-paper" draggable="true" ondragstart="handleDragStart(event)">
+            <canvas class="paper-canvas-preview" id="paper-preview-canvas" width="140" height="180"></canvas>
+        </div>
+        <button class="btn-hang-quick" onclick="quickHangToDryingLine()">👕 一鍵掛至晾乾繩</button>
+    </div>
+
+    <!-- 驗收彈窗 Modal -->
+    <div class="modal-overlay" id="modal-result">
+        <div class="modal-card">
+            <h2>沖印評估報告</h2>
+            <div class="stamp-grade" id="modal-grade">S CLASS</div>
+            <p id="modal-desc" style="color:var(--text-muted); line-height:1.6; margin-bottom:20px;"></p>
+            <div style="font-family:monospace; font-size:1.1rem; color:var(--accent-green); margin-bottom:20px;" id="modal-rewards">+ $100 CASH</div>
+            <button class="btn-action" style="width:100%; padding:12px;" onclick="closeModal()">確認並繼續</button>
+        </div>
+    </div>
+
+    <!-- 證書匯出 Modal -->
+    <div class="modal-overlay" id="modal-cert">
+        <div class="modal-card" style="max-width:700px;">
+            <h2>📜 暗房大師作品與證書匯出</h2>
+            <div style="margin:15px 0;">
+                <canvas id="cert-canvas" width="600" height="420" style="width:100%; border:2px solid var(--border-dark); border-radius:6px;"></canvas>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button class="btn-action" style="flex:1; padding:12px; background:#2e7d32;" onclick="downloadCertImage()">💾 下載PNG圖檔</button>
+                <button class="btn-action" style="flex:1; padding:12px; background:#444;" onclick="document.getElementById('modal-cert').style.display='none'">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================================================
+         JavaScript 旗艦修復版邏輯引擎 3.2
+         ========================================================================== -->
+    <script>
+        /* --------------------------------------------------------------------------
+         * 1. 音效引擎與 Web Audio Synthesizer
+         * -------------------------------------------------------------------------- */
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        let audioCtx = null;
+        let humOsc = null, humGain = null;
+        let isHumPlaying = false;
+
+        function initAudio() {
+            if (!audioCtx) audioCtx = new AudioCtx();
+        }
+
+        function toggleAudioHum() {
+            initAudio();
+            const btn = document.getElementById('btn-audio-hum');
+            if (!isHumPlaying) {
+                humOsc = audioCtx.createOscillator();
+                humGain = audioCtx.createGain();
+                humOsc.type = 'sawtooth';
+                humOsc.frequency.setValueAtTime(60, audioCtx.currentTime);
+
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(150, audioCtx.currentTime);
+
+                humGain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                humOsc.connect(filter);
+                filter.connect(humGain);
+                humGain.connect(audioCtx.destination);
+
+                humOsc.start();
+                isHumPlaying = true;
+                btn.innerText = "🔊 暗房抽風聲: 開";
+            } else {
+                if (humGain) humGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
+                setTimeout(() => { if (humOsc) humOsc.stop(); }, 200);
+                isHumPlaying = false;
+                btn.innerText = "🔊 暗房抽風聲: 關";
+            }
+        }
+
+        /* --------------------------------------------------------------------------
+         * 2. 全域狀態與 Persistence
+         * -------------------------------------------------------------------------- */
+        const STORAGE_KEY = 'silverlight_save_v3';
+
+        const defaultState = {
+            cash: 150,
+            exp: 0,
+            level: 1,
+            lightMode: 'red',
+            activeTab: 'enlarger',
+            film: 'portrait',
+            filterGrade: 2,
+            apertureIdx: 2,
+            focus: 100,
+            timer: 5.0,
+            dilution: 1,
+            brushTool: 'none',
+            brushSize: 30,
+            upgrades: { lensLevel: 1, rapidFixer: false, paperQuality: false },
+            activeQuestId: null,
+            achievements: [],
+            gallery: [],
+            stats: { totalProcessed: 0, successCount: 0 }
+        };
+
+        let gameState = { ...defaultState };
+
+        function saveGame() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(gameState));
+            updateHUD();
+        }
+
+        function loadGame() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                try { gameState = { ...defaultState, ...JSON.parse(saved) }; } catch(e){}
+            }
+            updateHUD();
+        }
+
+        function resetGameSave() {
+            if (confirm("確定要重置所有遊戲進度、成就與藝廊作品嗎？")) {
+                localStorage.removeItem(STORAGE_KEY);
+                gameState = { ...defaultState };
+                location.reload();
+            }
+        }
+
+        /* --------------------------------------------------------------------------
+         * 3. 遊戲資料
+         * -------------------------------------------------------------------------- */
+        const fStops = ["f/2.8", "f/4", "f/5.6", "f/8", "f/11", "f/16"];
+        const filterNames = ["Grade 00# (軟調)", "Grade 1#", "Grade 2# (標準)", "Grade 3#", "Grade 5# (高對比)"];
+        
+        const filmImages = {
+            portrait: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=600&auto=format&fit=crop",
+            street: "https://images.unsplash.com/photo-1519608487953-e999c86e7455?q=80&w=600&auto=format&fit=crop",
+            landscape: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=600&auto=format&fit=crop"
+        };
+
+        const questsData = [
+            { id: 'q1', title: '紐約爵士肖像', reqFilm: 'portrait', reqFilmName: '肖像', reqDevMin: 7.0, reqDevMax: 9.0, rewardCash: 120, rewardExp: 50, desc: '需使用肖像底片，顯影時間掌握在 7.0 - 9.0 秒之間。' },
+            { id: 'q2', title: '倫敦雨夜街拍', reqFilm: 'street', reqFilmName: '街景', reqDevMin: 8.0, reqDevMax: 10.0, rewardCash: 180, rewardExp: 80, desc: '需使用街景底片，顯影時間掌握在 8.0 - 10.0 秒。' },
+            { id: 'q3', title: '優勝美地巨岩', reqFilm: 'landscape', reqFilmName: '風景', reqDevMin: 7.5, reqDevMax: 8.5, rewardCash: 250, rewardExp: 120, desc: '極高要求的風景沖印，顯影需精準在 7.5 - 8.5 秒。' }
+        ];
+
+        const achievementsData = [
+            { id: 'ach1', title: '銀鹽啟蒙', desc: '完成第一張相紙的曝光與沖洗。', reward: 50 },
+            { id: 'ach2', title: '顯影大師', desc: '獲得一次 S CLASS 評等驗收。', reward: 100 },
+            { id: 'ach3', title: '暗房企業家', desc: '累積賺取超額 $500 現金。', reward: 200 },
+            { id: 'ach4', title: '藝廊典藏家', desc: '保存 3 張作品至個人藝廊。', reward: 150 }
+        ];
+
+        /* --------------------------------------------------------------------------
+         * 4. UI 互動與 Tabs
+         * -------------------------------------------------------------------------- */
+        function switchTab(tabId, btnEl) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            if (btnEl) {
+                btnEl.classList.add('active');
+            } else {
+                const targetBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+                if (targetBtn) targetBtn.classList.add('active');
+            }
+
+            const targetContent = document.getElementById(`tab-${tabId}`);
+            if (targetContent) targetContent.classList.add('active');
+
+            gameState.activeTab = tabId;
+            saveGame();
+
+            if (tabId === 'gallery') renderGallery();
+            if (tabId === 'quests') renderQuests();
+            if (tabId === 'shop') renderShop();
+            if (tabId === 'achievements') renderAchievements();
+        }
+
+        function setLightMode(mode) {
+            document.body.className = `mode-${mode}`;
+            gameState.lightMode = mode;
+
+            document.getElementById('btn-light-red').className = `btn-toggle ${mode==='red'?'active-red':''}`;
+            document.getElementById('btn-light-amber').className = `btn-toggle ${mode==='amber'?'active-amber':''}`;
+            document.getElementById('btn-light-white').className = `btn-toggle ${mode==='white'?'active-white':''}`;
+
+            if (mode === 'white' && currentPaper) {
+                if (currentPaper.state !== 'FIX_DONE' && currentPaper.state !== 'WASH_DONE' && currentPaper.state !== 'DRYING') {
+                    currentPaper.isRuined = true;
+                    showToast('⚠️ 未完成定影前開白燈，相紙已曝光毀損！');
+                    renderPaperPreview(currentPaper, document.getElementById('paper-preview-canvas'));
+                }
+            }
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 2500);
+        }
+
+        /* --------------------------------------------------------------------------
+         * 5. 放大機引擎與畫筆繪製
+         * -------------------------------------------------------------------------- */
+        const enlargerCanvas = document.getElementById('enlarger-canvas');
+        const enlargerCtx = enlargerCanvas.getContext('2d');
+        const loadedImgs = {};
+        let dodgeMapCanvas = document.createElement('canvas');
+
+        window.onload = () => {
+            loadGame();
+            initDodgeMap();
+            preloadImages();
+            renderQuests();
+            renderShop();
+            renderAchievements();
+        };
+
+        function initDodgeMap() {
+            dodgeMapCanvas.width = enlargerCanvas.width;
+            dodgeMapCanvas.height = enlargerCanvas.height;
+            const ctx = dodgeMapCanvas.getContext('2d');
+            ctx.fillStyle = '#808080';
+            ctx.fillRect(0, 0, dodgeMapCanvas.width, dodgeMapCanvas.height);
+        }
+
+        function preloadImages() {
+            Object.keys(filmImages).forEach(key => {
+                const img = new Image();
+                img.crossOrigin = "anonymous";
+                img.src = filmImages[key];
+                img.onload = () => {
+                    loadedImgs[key] = img;
+                    if (key === gameState.film) renderEnlargerPreview();
+                };
+            });
+        }
+
+        function handleCustomFileUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    loadedImgs['custom'] = img;
+                    gameState.film = 'custom';
+                    
+                    const select = document.getElementById('select-film');
+                    const opt = document.createElement('option');
+                    opt.value = 'custom';
+                    opt.innerText = `自訂底片 - ${file.name}`;
+                    select.appendChild(opt);
+                    select.value = 'custom';
+
+                    renderEnlargerPreview();
+                    showToast('📁 自訂相片底片上傳成功！');
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function loadFilmToEnlarger() {
+            gameState.film = document.getElementById('select-film').value;
+            initDodgeMap();
+            renderEnlargerPreview();
+        }
+
+        function updateEnlargerParams() {
+            gameState.filterGrade = parseInt(document.getElementById('knob-filter').value);
+            gameState.apertureIdx = parseInt(document.getElementById('knob-aperture').value);
+            gameState.focus = parseInt(document.getElementById('knob-focus').value);
+            gameState.timer = parseFloat(document.getElementById('knob-timer').value);
+
+            document.getElementById('val-filter').innerText = filterNames[gameState.filterGrade];
+            document.getElementById('val-aperture').innerText = fStops[gameState.apertureIdx];
+            document.getElementById('val-focus').innerText = gameState.focus === 100 ? "100% (清晰)" : `${gameState.focus}%`;
+            document.getElementById('val-timer').innerText = `${gameState.timer.toFixed(1)} 秒`;
+
+            renderEnlargerPreview();
+        }
+
+        function updateDilutionParams() {
+            gameState.dilution = parseInt(document.getElementById('knob-dilution').value);
+            const names = ["原液 (Stock)", "1:1 稀釋", "1:3 稀釋"];
+            const devTargetTimes = ["目標: 5-7 秒", "目標: 7-9 秒", "目標: 10-13 秒"];
+            
+            document.getElementById('val-dilution').innerText = names[gameState.dilution];
+            document.getElementById('tray-dev-desc').innerText = `還原銀鹽 (${devTargetTimes[gameState.dilution]})`;
+            document.getElementById('beaker-liquid-dev').style.height = `${(3 - gameState.dilution) * 25 + 25}%`;
+        }
+
+        function setTool(tool) {
+            gameState.brushTool = tool;
+            document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`tool-${tool}`).classList.add('active');
+        }
+
+        function updateBrushSize() {
+            gameState.brushSize = parseInt(document.getElementById('knob-brush-size').value);
+            document.getElementById('val-brush-size').innerText = `${gameState.brushSize}px`;
+        }
+
+        let isDrawing = false;
+        enlargerCanvas.onmousedown = (e) => { isDrawing = true; drawMask(e); };
+        enlargerCanvas.onmousemove = (e) => { if (isDrawing) drawMask(e); };
+        enlargerCanvas.onmouseup = () => isDrawing = false;
+
+        function drawMask(e) {
+            if (gameState.brushTool === 'none') return;
+            const rect = enlargerCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const ctx = dodgeMapCanvas.getContext('2d');
+            ctx.beginPath();
+            ctx.arc(x, y, gameState.brushSize, 0, Math.PI * 2);
+            ctx.fillStyle = gameState.brushTool === 'dodge' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)';
+            ctx.fill();
+
+            renderEnlargerPreview();
+        }
+
+        function renderEnlargerPreview() {
+            enlargerCtx.clearRect(0, 0, enlargerCanvas.width, enlargerCanvas.height);
+            const img = loadedImgs[gameState.film];
+            if (!img) return;
+
+            enlargerCtx.save();
+            let blurVal = (100 - gameState.focus) / 10;
+            if (gameState.upgrades.lensLevel > 1) blurVal *= 0.5;
+
+            let contrastVal = 100 + (gameState.filterGrade - 2) * 25;
+
+            enlargerCtx.filter = `blur(${blurVal}px) grayscale(100%) contrast(${contrastVal}%)`;
+            enlargerCtx.drawImage(img, 0, 0, enlargerCanvas.width, enlargerCanvas.height);
+            enlargerCtx.restore();
+
+            enlargerCtx.save();
+            enlargerCtx.globalCompositeOperation = 'overlay';
+            enlargerCtx.drawImage(dodgeMapCanvas, 0, 0);
+            enlargerCtx.restore();
+        }
+
+        /* --------------------------------------------------------------------------
+         * 6. 相紙與化學沖洗引擎 (State Machine)
+         * -------------------------------------------------------------------------- */
+        let currentPaper = null;
+        let activeInterval = null;
+
+        function triggerExposure() {
+            currentPaper = {
+                id: Date.now(),
+                film: gameState.film,
+                exposureTime: gameState.timer,
+                filterGrade: gameState.filterGrade,
+                aperture: fStops[gameState.apertureIdx],
+                focus: gameState.focus,
+                dilution: gameState.dilution,
+                dodgeMapDataUrl: dodgeMapCanvas.toDataURL(),
+                state: 'EXPOSED',
+                timers: { dev: 0, stop: 0, fix: 0, wash: 0 },
+                isRuined: false
+            };
+
+            const wrapper = document.getElementById('paper-spawn-wrapper');
+            wrapper.style.display = 'flex';
+
+            renderPaperPreview(currentPaper, document.getElementById('paper-preview-canvas'));
+            showToast('✨ 感光曝光完成！請拖曳右下角浮動相紙進行沖洗。');
+            switchTab('wetbench');
+        }
+
+        function handleDragStart(e) {
+            e.dataTransfer.setData('text/plain', 'paper');
+        }
+
+        function handleDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
+        function handleDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+
+        function handleDrop(e, targetTray) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+            if (!currentPaper) return;
+
+            if (targetTray === 'dev' && currentPaper.state !== 'EXPOSED') {
+                showToast('❌ 該相紙已完成顯影！'); return;
+            } else if (targetTray === 'stop' && currentPaper.state !== 'EXPOSED' && currentPaper.state !== 'DEV_DONE') {
+                showToast('❌ 請先在顯影液中進行顯影！'); return;
+            } else if (targetTray === 'fix' && currentPaper.state !== 'STOP_DONE') {
+                showToast('❌ 請先進行急停液處理！'); return;
+            } else if (targetTray === 'wash' && currentPaper.state !== 'FIX_DONE') {
+                showToast('❌ 請先完成定影處理！'); return;
+            } else if (targetTray === 'drying') {
+                quickHangToDryingLine();
+                return;
+            }
+
+            const viewport = document.getElementById(`viewport-${targetTray}`);
+            viewport.appendChild(document.getElementById('draggable-paper'));
+
+            clearInterval(activeInterval);
+
+            activeInterval = setInterval(() => {
+                currentPaper.timers[targetTray] += 0.1;
+                document.getElementById(`timer-${targetTray}`).innerText = `${currentPaper.timers[targetTray].toFixed(1)}s`;
+
+                if (targetTray === 'dev' && currentPaper.timers.dev >= 3.0) currentPaper.state = 'DEV_DONE';
+                if (targetTray === 'stop' && currentPaper.timers.stop >= 2.0) currentPaper.state = 'STOP_DONE';
+                
+                const reqFixTime = gameState.upgrades.rapidFixer ? 2.5 : 5.0;
+                if (targetTray === 'fix' && currentPaper.timers.fix >= reqFixTime) currentPaper.state = 'FIX_DONE';
+                if (targetTray === 'wash' && currentPaper.timers.wash >= 3.0) currentPaper.state = 'WASH_DONE';
+
+                renderPaperPreview(currentPaper, document.getElementById('paper-preview-canvas'));
+            }, 100);
+        }
+
+        /* 一鍵掛至晾乾繩 (雙保險修復靈魂) */
+        function quickHangToDryingLine() {
+            if (!currentPaper) { showToast('目前沒有相紙！'); return; }
+            if (currentPaper.state !== 'WASH_DONE') { showToast('❌ 請先完成「顯影 ➔ 急停 ➔ 定影 ➔ 水洗」再晾乾！'); return; }
+
+            clearInterval(activeInterval);
+            currentPaper.state = 'DRYING';
+
+            const hangingContainer = document.getElementById('hanging-paper-container');
+            hangingContainer.appendChild(document.getElementById('draggable-paper'));
+
+            document.getElementById('paper-spawn-wrapper').style.display = 'none';
+
+            renderLoupeAndHistogram(currentPaper);
+            switchTab('drying');
+            showToast('👕 相紙已成功掛上晾乾繩！');
+        }
+
+        /* --------------------------------------------------------------------------
+         * 7. 像素繪製與 Histogram 分析
+         * -------------------------------------------------------------------------- */
+        function renderPaperPreview(paper, canvas) {
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (paper.isRuined) {
+                ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, canvas.width, canvas.height); return;
+            }
+
+            const img = loadedImgs[paper.film];
+            if (!img) return;
+
+            const devSpeedMult = paper.dilution === 0 ? 1.4 : (paper.dilution === 2 ? 0.7 : 1.0);
+            let devProgress = (paper.timers.dev * devSpeedMult) / 8.0;
+            if (devProgress > 2.0) devProgress = 2.0;
+
+            let brightness = 200 - (devProgress * 100);
+            let contrast = devProgress * 100 + (paper.filterGrade - 2) * 20;
+
+            ctx.save();
+            ctx.filter = `grayscale(100%) brightness(${brightness}%) contrast(${contrast}%)`;
+            if (paper.focus < 100) ctx.filter += ` blur(${(100 - paper.focus)/15}px)`;
+
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            ctx.restore();
+
+            if (paper.dodgeMapDataUrl) {
+                const maskImg = new Image();
+                maskImg.src = paper.dodgeMapDataUrl;
+                ctx.save();
+                ctx.globalCompositeOperation = 'overlay';
+                ctx.drawImage(maskImg, 0, 0, canvas.width, canvas.height);
+                ctx.restore();
+            }
+        }
+
+        function renderLoupeAndHistogram(paper) {
+            const loupeCvs = document.getElementById('loupe-canvas');
+            const lCtx = loupeCvs.getContext('2d');
+            const paperCvs = document.getElementById('paper-preview-canvas');
+
+            lCtx.clearRect(0, 0, loupeCvs.width, loupeCvs.height);
+            lCtx.drawImage(paperCvs, paperCvs.width/4, paperCvs.height/4, paperCvs.width/2, paperCvs.height/2, 0, 0, loupeCvs.width, loupeCvs.height);
+
+            const histCvs = document.getElementById('histogram-canvas');
+            const hCtx = histCvs.getContext('2d');
+            hCtx.clearRect(0, 0, histCvs.width, histCvs.height);
+
+            const imgData = paperCvs.getContext('2d').getImageData(0, 0, paperCvs.width, paperCvs.height);
+            const bins = new Array(256).fill(0);
+
+            for (let i = 0; i < imgData.data.length; i += 4) {
+                const avg = Math.floor((imgData.data[i] + imgData.data[i+1] + imgData.data[i+2]) / 3);
+                bins[avg]++;
+            }
+
+            const maxBin = Math.max(...bins);
+            hCtx.fillStyle = '#ffaa00';
+            for (let i = 0; i < 256; i++) {
+                const h = (bins[i] / maxBin) * histCvs.height;
+                hCtx.fillRect(i * (histCvs.width / 256), histCvs.height - h, histCvs.width / 256, h);
+            }
+        }
+
+        /* --------------------------------------------------------------------------
+         * 8. 驗收評估、成就與大師證書匯出
+         * -------------------------------------------------------------------------- */
+        function submitPhotoForQuest() {
+            if (!currentPaper || currentPaper.state !== 'DRYING') { showToast('請先完成相紙沖洗並掛上晾乾繩！'); return; }
+
+            const activeQuest = questsData.find(q => q.id === gameState.activeQuestId);
+            let grade = 'S CLASS';
+            let cashGain = 100;
+            let expGain = 50;
+            let desc = '';
+
+            if (currentPaper.isRuined) {
+                grade = 'F (廢紙)'; cashGain = 0; expGain = 0;
+                desc = '作品遭到曝光曝光毀損，無法驗收！';
+            } else if (activeQuest) {
+                let passFilm = currentPaper.film === activeQuest.reqFilm;
+                let passDev = currentPaper.timers.dev >= activeQuest.reqDevMin && currentPaper.timers.dev <= activeQuest.reqDevMax;
+
+                if (passFilm && passDev && currentPaper.state === 'DRYING') {
+                    grade = 'S CLASS (完美完成)';
+                    cashGain = activeQuest.rewardCash;
+                    expGain = activeQuest.rewardExp;
+                    desc = `完全符合委託需求！${activeQuest.desc}`;
+                    unlockAchievement('ach2');
+                } else {
+                    grade = 'B (未達標準)';
+                    cashGain = Math.floor(activeQuest.rewardCash * 0.4);
+                    expGain = 10;
+                    desc = `作品未符合委託規範。(需要 ${activeQuest.reqFilmName}底片，且顯影時間在 ${activeQuest.reqDevMin}-${activeQuest.reqDevMax}s 之間)`;
+                }
+            } else {
+                desc = '自由作品沖印驗收完成。';
+            }
+
+            if (gameState.upgrades.paperQuality) cashGain = Math.floor(cashGain * 1.25);
+
+            gameState.cash += cashGain;
+            gameState.exp += expGain;
+            gameState.stats.totalProcessed++;
+            if (grade.includes('S')) gameState.stats.successCount++;
+
+            unlockAchievement('ach1');
+            if (gameState.cash >= 500) unlockAchievement('ach3');
+
+            saveGame();
+
+            document.getElementById('modal-grade').innerText = grade;
+            document.getElementById('modal-desc').innerText = desc;
+            document.getElementById('modal-rewards').innerText = `+ $${cashGain} 現金 | +${expGain} EXP`;
+            document.getElementById('modal-result').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('modal-result').style.display = 'none';
+            document.getElementById('paper-spawn-wrapper').style.display = 'none';
+            currentPaper = null;
+        }
+
+        function exportCertificateModal() {
+            if (!currentPaper) { showToast('請先完成作品沖洗與晾乾！'); return; }
+            const cvs = document.getElementById('cert-canvas');
+            const ctx = cvs.getContext('2d');
+            const paperCvs = document.getElementById('paper-preview-canvas');
+
+            ctx.fillStyle = '#1c1512'; ctx.fillRect(0, 0, cvs.width, cvs.height);
+            ctx.fillStyle = '#fbfbf8'; ctx.fillRect(20, 20, cvs.width-40, cvs.height-40);
+
+            ctx.drawImage(paperCvs, 50, 50, 240, 300);
+
+            ctx.fillStyle = '#222';
+            ctx.font = 'bold 22px serif';
+            ctx.fillText('SILVERLIGHT DARKROOM', 320, 90);
+            
+            ctx.font = '14px sans-serif';
+            ctx.fillStyle = '#555';
+            ctx.fillText('傳統銀鹽沖印大師認證作品', 320, 120);
+
+            ctx.font = '12px monospace';
+            ctx.fillText(`底片類型: ${currentPaper.film}`, 320, 170);
+            ctx.fillText(`顯影時間: ${currentPaper.timers.dev.toFixed(1)}s`, 320, 195);
+            ctx.fillText(`光圈對焦: ${currentPaper.aperture} / ${currentPaper.focus}%`, 320, 220);
+            ctx.fillText(`濾光號數: Grade ${currentPaper.filterGrade}#`, 320, 245);
+
+            ctx.fillStyle = '#cc1100';
+            ctx.font = 'bold 18px cursive';
+            ctx.fillText('Master Signature: SilverLight', 320, 310);
+
+            document.getElementById('modal-cert').style.display = 'flex';
+        }
+
+        function downloadCertImage() {
+            const cvs = document.getElementById('cert-canvas');
+            const link = document.createElement('a');
+            link.download = `Darkroom_Masterpiece_${Date.now()}.png`;
+            link.href = cvs.toDataURL();
+            link.click();
+            showToast('💾 照片證書已成功下載！');
+        }
+
+        /* --------------------------------------------------------------------------
+         * 9. 成就、藝廊、商店與 HUD 更新
+         * -------------------------------------------------------------------------- */
+        function unlockAchievement(achId) {
+            if (!gameState.achievements.includes(achId)) {
+                gameState.achievements.push(achId);
+                const ach = achievementsData.find(a => a.id === achId);
+                if (ach) gameState.cash += ach.reward;
+                saveGame();
+                showToast(`🏆 恭喜解鎖成就：${ach.title} (+$${ach.reward})`);
+            }
+        }
+
+        function renderAchievements() {
+            const container = document.getElementById('achievement-container');
+            container.innerHTML = '';
+            achievementsData.forEach(a => {
+                const isUnlocked = gameState.achievements.includes(a.id);
+                const card = document.createElement('div');
+                card.className = `achieve-card ${isUnlocked ? 'unlocked' : ''}`;
+                card.innerHTML = `
+                    <div class="card-title">${isUnlocked ? '✅' : '🔒'} ${a.title}</div>
+                    <div style="font-size:0.85rem; color:var(--text-muted);">${a.desc}</div>
+                    <div class="card-reward">獎勵: $${a.reward}</div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function savePhotoToGallery() {
+            if (!currentPaper) { showToast('無可保存的作品！'); return; }
+            const cvs = document.getElementById('paper-preview-canvas');
+            
+            gameState.gallery.push({
+                id: Date.now(),
+                dataUrl: cvs.toDataURL(),
+                film: currentPaper.film,
+                devTime: currentPaper.timers.dev.toFixed(1),
+                date: new Date().toLocaleDateString()
+            });
+
+            if (gameState.gallery.length >= 3) unlockAchievement('ach4');
+
+            saveGame();
+            showToast('🖼️ 已成功儲存至作品藝廊！');
+        }
+
+        function renderGallery() {
+            const container = document.getElementById('gallery-container');
+            container.innerHTML = '';
+
+            if (gameState.gallery.length === 0) {
+                container.innerHTML = `<div style="grid-column:1/-1; text-align:center; color:#666; padding:40px;">藝廊目前沒有收藏作品。</div>`;
+                return;
+            }
+
+            gameState.gallery.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'gallery-card';
+                card.innerHTML = `
+                    <img src="${item.dataUrl}" style="width:100%; height:200px; object-fit:cover; border-radius:4px;">
+                    <div style="font-size:0.85rem; color:var(--amber-gold);">底片: ${item.film} | 顯影: ${item.devTime}s</div>
+                    <div style="font-size:0.75rem; color:#666;">典藏日期: ${item.date}</div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function updateHUD() {
+            document.getElementById('stat-cash').innerText = `$${gameState.cash}`;
+            document.getElementById('stat-exp').innerText = `LV.${gameState.level} (${gameState.exp}/100)`;
+            const quest = questsData.find(q => q.id === gameState.activeQuestId);
+            document.getElementById('stat-quest').innerText = quest ? quest.title : '無';
+        }
+
+        function renderQuests() {
+            const container = document.getElementById('quest-container');
+            container.innerHTML = '';
+            questsData.forEach(q => {
+                const card = document.createElement('div');
+                card.className = `quest-card ${gameState.activeQuestId === q.id ? 'active' : ''}`;
+                card.innerHTML = `
+                    <div class="card-title">${q.title}</div>
+                    <div style="font-size:0.85rem; color:var(--text-muted);">${q.desc}</div>
+                    <div class="card-reward">獎勵: $${q.rewardCash} | +${q.rewardExp} EXP</div>
+                    <button class="btn-action" onclick="acceptQuest('${q.id}')">${gameState.activeQuestId === q.id ? '執行中' : '接受委託'}</button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function acceptQuest(id) {
+            gameState.activeQuestId = id;
+            saveGame();
+            renderQuests();
+            showToast('已接受委託！');
+        }
+
+        function renderShop() {
+            const container = document.getElementById('shop-container');
+            container.innerHTML = `
+                <div class="shop-card">
+                    <div class="card-title">Rodenstock 專業放大鏡頭</div>
+                    <div style="font-size:0.85rem; color:var(--text-muted);">降低對焦誤差模糊，大幅提高畫面銳利寬容度。</div>
+                    <div class="card-reward">$200</div>
+                    <button class="btn-action" onclick="buyItem('lens', 200)">${gameState.upgrades.lensLevel > 1 ? '已擁有' : '購買升級'}</button>
+                </div>
+                <div class="shop-card">
+                    <div class="card-title">Jobo 快速定影液</div>
+                    <div style="font-size:0.85rem; color:var(--text-muted);">將安全定影防光時間減半至 2.5 秒。</div>
+                    <div class="card-reward">$150</div>
+                    <button class="btn-action" onclick="buyItem('fixer', 150)">${gameState.upgrades.rapidFixer ? '已擁有' : '購買升級'}</button>
+                </div>
+                <div class="shop-card">
+                    <div class="card-title">Ilford 纖維進口相紙</div>
+                    <div style="font-size:0.85rem; color:var(--text-muted);">提升相紙階調表現，完成驗收時額外獲得 +25% 報酬。</div>
+                    <div class="card-reward">$180</div>
+                    <button class="btn-action" onclick="buyItem('paper', 180)">${gameState.upgrades.paperQuality ? '已擁有' : '購買升級'}</button>
+                </div>
+            `;
+        }
+
+        function buyItem(type, cost) {
+            if (gameState.cash < cost) { showToast('現金不足！'); return; }
+            if (type === 'lens' && gameState.upgrades.lensLevel === 1) {
+                gameState.cash -= cost; gameState.upgrades.lensLevel = 2;
+            } else if (type === 'fixer' && !gameState.upgrades.rapidFixer) {
+                gameState.cash -= cost; gameState.upgrades.rapidFixer = true;
+            } else if (type === 'paper' && !gameState.upgrades.paperQuality) {
+                gameState.cash -= cost; gameState.upgrades.paperQuality = true;
+            } else {
+                showToast('已擁有該升級！'); return;
+            }
+            saveGame();
+            renderShop();
+            showToast('🎉 購買成功！');
+        }
+    </script>
+</body>
+</html>
